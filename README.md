@@ -10,6 +10,7 @@
     - Unique and non-unique index support for faster db access 
     
    
+  * Target OS - Windows 10  
   * How to install run 
     - Ensure Python3.9+ is installed
     - Ensure pyreadline, prettytable and termcolor libraries are installed
