@@ -19,9 +19,9 @@ from db_lib.base_dao import DBClient
 from db_store import datastore_workers
 from db_store.datastore_workers import DBStoreWorkers
 from models.base_dataobject import BaseDO
-from models.car_do import CarDO, CarStateDO
-from models.login_state_do import LoginStateDO
-from models.operator_do import OperatorDO, OperatorCredentialsDO
+from models.car_resources import CarDO, CarStateDO
+from models.login_state_resources import LoginStateDO
+from models.operator_resources import OperatorDO, OperatorCredentialsDO
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +281,29 @@ class ReservationMenu(MainMenu):
         self.singleton_cmds = {"reserve": entities_meta_info_map["car-reservation"]}
         self.entities_meta_info_map = {"car": entities_meta_info_map["car"]}
 
+    def do_inspect_reservations(self, arg):
+        command, entity, args = self.parse_cmd_entity_args("inspect_reservations singleton_entity " + arg)
+        if entity != "singleton_entity":
+            print("Incomplete command - Please provide all mandatory parameters for reserving command")
+            return
+        entity_class = supported_entities["car-reservation"]
+        res, objects = entity_class.dao.get({})
+        if not res:
+            print(f"Internal server error, please try after sometime !!")
+            return
+
+        if not objects:
+            print(f'No instances of car-reservation is registered in system')
+            return
+
+        t = PrettyTable(['key', 'value'])
+        for obj in objects:
+            for key, val in json.loads(obj)["content"].items():
+                t.add_row([key, val])
+            t.add_row(["\n\n", "\n\n"])
+        print(t)
+        self.lastcmd = ""
+
     def do_reserve(self, arg):
         command, entity, args = self.parse_cmd_entity_args("reserve singleton_entity " + arg)
         if entity != "singleton_entity" or not args:
@@ -339,8 +362,8 @@ class OperatorMenu(MainMenu):
                                        "op_credentials": entities_meta_info_map["op_credentials"]}
 
     def do_login(self, arg):
-        command, entity, args = self.parse_cmd_entity_args("login session " + arg)
-        if entity != "session" or not args or not args.get("email_address") or not args.get("password"):
+        command, entity, args = self.parse_cmd_entity_args("login singleton_entity " + arg)
+        if entity != "singleton_entity" or not args or not args.get("email_address") or not args.get("password"):
             print("Incomplete command - Please provide all mandatory parameters for operator login")
             return
 
