@@ -1,6 +1,6 @@
 # QuickReserve
 
-* Fast and efficient car reservation system with great User Experience for manager and customer roles.
+* PYTHON ASYNCIO Based - Fast and efficient car reservation system with great User Experience for manager and customer roles.
 * Main features
     - Operator Management to create Manager and Customer User
     - RBAC for different type of users
