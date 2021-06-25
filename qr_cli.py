@@ -15,6 +15,7 @@ import readline
 import re
 from db_lib.base_dao import DBClient
 from db_store.datastore_workers import DBStoreWorkers
+from reserve_entities.base_dataobject import BaseDO
 from reserve_entities.car_do import CarDO, CarStateDO
 from reserve_entities.login_state_do import LoginStateDO
 from reserve_entities.operator_do import OperatorDO, OperatorCredentialsDO
@@ -64,8 +65,9 @@ class MainMenu(cmd.Cmd):
         self.label = label
         self.parent_role = parent_role
         self.parent_label = parent_label
-        self.supported_cmds = set(["register", "modify", "show", "delete"])
-        self.entities_meta_info_map = {"car": entities_meta_info_map["car"]}
+        self.singleton_cmds = {}
+        self.entity_cmds = set(["register", "modify", "show", "delete"])
+        self.entities_meta_info_map = {}
 
         cmd.Cmd.prompt = f"{self.label}:{self.role}#"
 
@@ -98,9 +100,6 @@ class MainMenu(cmd.Cmd):
 
         print(f'{entity} with id:{args["id"]} deleted successfully')
         self.lastcmd = None
-
-    def do_reserve(self, arg):
-        pass
 
     def do_show(self, arg):
         cmd, entity, args = self.parse_cmd_entity_args("show " + arg)
@@ -141,6 +140,21 @@ class MainMenu(cmd.Cmd):
         print(t)
 
         self.lastcmd = None
+
+    def validate_input(self, entity_meta_info, args):
+        if not set(list(entity_meta_info.indexes.keys())).issubset(set(list(args.keys()))):
+            print("Incomplete command - Please provide all mandatory parameters for registering entity")
+            print(f"Expected:{set(list(entity_meta_info.indexes.keys()))}")
+            print(f"Given:{set(list(set(list(args.keys()))))}")
+            return False
+
+        if not set(list(args.keys())).issubset(set(entity_meta_info.attributes)):
+            print(f"Unsupported attributes provided for registering a new :{entity}")
+            print(f"Expected:{set(entity_meta_info.attributes)}")
+            print(f"Given:{set(list(set(list(args.keys()))))}")
+            return False
+
+        return True
 
     def do_modify(self, arg):
         cmd, entity, args = self.parse_cmd_entity_args("modify " + arg)
@@ -190,16 +204,7 @@ class MainMenu(cmd.Cmd):
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
             return
 
-        if not set(list(self.entities_meta_info_map[entity].indexes.keys())).issubset(set(list(args.keys()))):
-            print("Incomplete command - Please provide all mandatory parameters for registering entity")
-            print(f"Expected:{set(list(self.entities_meta_info_map[entity].indexes.keys()))}")
-            print(f"Given:{set(list(set(list(args.keys()))))}")
-            return
-
-        if not set(list(args.keys())).issubset(set(self.entities_meta_info_map[entity].attributes)):
-            print(f"Unsupported attributes provided for registering a new :{entity}")
-            print(f"Expected:{set(self.entities_meta_info_map[entity].attributes)}")
-            print(f"Given:{set(list(set(list(args.keys()))))}")
+        if not self.validate_input(self.entities_meta_info_map[entity], args):
             return
 
         logger.info(f"ARGS:{args}:type:{type(args)}")
@@ -219,10 +224,20 @@ class MainMenu(cmd.Cmd):
         logger.info(f"LINE-{line}, {text}")
         cmd, entity, args = self.parse_cmd_entity_args(line)
         logger.info(f"AFTER PARSE-{cmd}, {entity}, {args}")
-        if cmd not in self.supported_cmds:
+        if cmd not in self.entity_cmds or cmd not in self.singleton_cmds:
             return []
 
+        filter = ""
+        if text != entity:
+            filter = text
+
+        if not args:
+            args = {}
+
         if not entity:
+            if cmd in self.singleton_cmds:
+                return [attr + "=" for attr in self.singleton_cmds[cmd].attributes if
+                        attr.startswith(filter) and attr not in list(args.keys())]
             logger.info(list(self.entities_meta_info_map.keys()))
             return list(self.entities_meta_info_map.keys())
 
@@ -253,14 +268,18 @@ class MainMenu(cmd.Cmd):
 class ReservationMenu(MainMenu):
     def __init__(self, role, label, parent_role="", parent_label=""):
         super().__init__(role, label, parent_role, parent_label)
-        self.supported_cmds = set(["reserve", "register", "modify", "show", "delete"])
-        self.entities_meta_info_map = {"car": entities_meta_info_map["car"],
-                                       "car-reservation": entities_meta_info_map["car-reservation"]}
+        self.singleton_cmds = {"reserve" : entities_meta_info_map["car-reservation"]}
+        self.entities_meta_info_map = {"car": entities_meta_info_map["car"]}
 
     def do_reserve(self, arg):
-        cmd, entity, args = self.parse_cmd_entity_args("reserve car-reservation " + arg)
-        if entity != "car-reservation" or not args or not args.get("car_reg_no"):
+        cmd, entity, args = self.parse_cmd_entity_args("reserve singleton_entity " + arg)
+        if entity != "singleton_entity" or not args:
             print("Incomplete command - Please provide all mandatory parameters for reserving command")
+            return
+
+        entity_meta_info = self.singleton_cmds["reserve"]
+        if not self.validate_input(entity_meta_info, args):
+            return
 
         entity_class = supported_entities["car"]
         res, objects = entity_class.dao.get({"reg_no": args["car_reg_no"]})
@@ -299,53 +318,24 @@ class ReservationMenu(MainMenu):
         print(t)
         self.lastcmd = None
 
-    def completedefault(self, text, line, begidx, endidx):
-        logger.info(f'BEFORE_PARSE:{line}')
-        if line and line.startswith("reserve"):
-            line = line.replace("reserve ", "reserve car-reservation ")
-        #    print(line)
-
-        logger.info(f"LINE-{line}, {text}")
-
-        cmd, entity, args = self.parse_cmd_entity_args(line)
-        logger.info(f"AFTER PARSE-{cmd}, {entity}, {args}")
-        if cmd not in self.supported_cmds:
-            return []
-
-        ent_list = list(self.entities_meta_info_map.keys())
-        if not entity:
-            logger.info(ent_list)
-            ent_list.remove("car-reservation")
-            return ent_list
-
-        if entity not in ent_list:
-            ent_list.remove("car-reservation")
-            for e in ent_list:
-                return [e for e in ent_list if e.startswith(entity)]
-
-        filter_text = ""
-        if text != entity:
-            filter_text = text
-
-        if not args:
-            args = {}
-
-        return [attr + "=" for attr in self.entities_meta_info_map[entity].attributes if
-                attr.startswith(filter_text) and attr not in list(args.keys())]
 
 
 class OperatorMenu(MainMenu):
     def __init__(self, role, label, parent_role="", parent_label=""):
         super().__init__(role, label, parent_role, parent_label)
-        self.supported_cmds = set(["login", "register", "modify", "show", "delete"])
+        self.singleton_cmds = {"login" : entities_meta_info_map["session"]}
         self.entities_meta_info_map = {"operator": entities_meta_info_map["operator"],
-                                       "op_credentials": entities_meta_info_map["op_credentials"],
-                                       "session": entities_meta_info_map["session"]}
+                                       "op_credentials": entities_meta_info_map["op_credentials"]}
 
     def do_login(self, arg):
         cmd, entity, args = self.parse_cmd_entity_args("login session " + arg)
         if entity != "session" or not args or not args.get("email_address") or not args.get("password"):
             print("Incomplete command - Please provide all mandatory parameters for operator login")
+            return 
+
+        entity_meta_info = self.singleton_cmds["login"]
+        if not self.validate_input(entity_meta_info, args):
+            return
 
         entity_class = supported_entities["operator"]
         res, objects = entity_class.dao.get({"email_address": args["email_address"]})
@@ -372,49 +362,16 @@ class OperatorMenu(MainMenu):
         ReservationMenu(role=op.role, label=op.email_address, parent_role=self.role, parent_label=self.label).cmdloop()
         self.lastcmd = None
 
-    def completedefault(self, text, line, begidx, endidx):
-        logger.info(f'BEFORE_PARSE:{line}')
-        if line and line.startswith("login"):
-            line = line.replace("login ", "login session ")
-        #    print(line)
-
-        logger.info(f"LINE-{line}, {text}")
-
-        cmd, entity, args = self.parse_cmd_entity_args(line)
-        logger.info(f"AFTER PARSE-{cmd}, {entity}, {args}")
-        if cmd not in self.supported_cmds:
-            return []
-
-        ent_list = list(self.entities_meta_info_map.keys())
-        if not entity:
-            logger.info(ent_list)
-            ent_list.remove("session")
-            return ent_list
-
-        if entity not in ent_list:
-            ent_list.remove("session")
-            for e in ent_list:
-                return [e for e in ent_list if e.startswith(entity)]
-
-        filter_text = ""
-        if text != entity:
-            filter_text = text
-
-        if not args:
-            args = {}
-
-        return [attr + "=" for attr in self.entities_meta_info_map[entity].attributes if
-                attr.startswith(filter_text) and attr not in list(args.keys())]
-
 
 def setup_entities_metadata(entities):
+    parent = BaseDO()
     for e in entities:
         if e not in supported_entities:
             # LOG
             continue
         # LOG
         obj = supported_entities[e]()
-        attrs = list(obj.__dict__.keys())
+        attrs = list(set(list(obj.__dict__.keys())) - set(list(parent.__dict__.keys())))
         entities_meta_info_map[e] = EntitiesMetaInfo(e, attrs, obj.dao.indexes.copy())
 
 
