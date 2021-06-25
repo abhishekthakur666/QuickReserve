@@ -10,9 +10,9 @@
    
   * How to install run 
     - Ensure Python3.9+ is installed
-    - Ensure pyreadline and prettytable libraries are installed
+    - Ensure pyreadline and prettytable and termcolor libraries are installed
     - Clone the code
-    - python ./qr_cli.py 
+    - python reservecli.py 
 
 * Output (By default Master CLI prompt will be launched)
     - Master admin can create customer operator
