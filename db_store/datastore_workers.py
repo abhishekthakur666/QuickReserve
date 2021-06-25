@@ -1,6 +1,6 @@
 import asyncio
 import json
-from asyncio import Future
+from reservecli import logger
 
 from db_store import MAX_TASK_QUEUE_SIZE, TABLE_NOT_FOUND, DEFAULT_UUID_LEN, \
     ENTITY_NOT_FOUND, DUPLICATE_ENTITY_FOUND, DB_OPERATION_CREATE_ENTITY, DB_OPERATION_ENTITY_SAVE, \
@@ -10,7 +10,7 @@ from db_store.datastore import DBStore
 
 # TBD: Handle singleton per DB NAME
 
-class DBAccessReq(object):  # FIXME: Move it somewehere else
+class DBAccessReq(object):
     def __init__(self, entity_name, op, data, fut):
         self.entity_name = entity_name
         self.op = op
@@ -72,21 +72,21 @@ class DBStoreWorkers(object):
             return True, records
 
         for f, v in filters.items():
-            #print(f"{f},{v}")
+            # print(f"{f},{v}")
             indexed = table.get_indexed(f)
             if not indexed:
                 # LOG
-                #print("NO Indexed object found")
+                # print("NO Indexed object found")
                 continue
-            #print(indexed.indexed_values)
+            # print(indexed.indexed_values)
             ids = indexed.get_indexed_record_ids(v)
             if not ids:
                 # LOG
-                #print("NO Ids object found")
+                # print("NO Ids object found")
                 continue
             record_ids = record_ids.union(ids)
 
-        #print(record_ids)
+        # print(record_ids)
         for _id in record_ids:
             r = table.get_record(_id)
             if not r:
@@ -109,7 +109,7 @@ class DBStoreWorkers(object):
     async def __process_requests(self, task_queue):
         while True:
             task = await task_queue.get()
-            #print(f"RECV TASK:{task.op}, {task.op_data}")
+            # print(f"RECV TASK:{task.op}, {task.op_data}")
             if task.op == DB_OPERATION_CREATE_ENTITY:
                 status, result = self.__add_table(task.entity_name, task.op_data)
             elif task.op == DB_OPERATION_ENTITY_SAVE:
@@ -120,7 +120,6 @@ class DBStoreWorkers(object):
                 status, result = self.__del_one_object(task.entity_name, task.op_data)
             else:
                 status, result = False, self.__db_error_message(UNSUPPORTED_DB_OPERATION, task.op)
-
 
             task.result.set_result(DBAccessResp(status, result))
 
@@ -140,7 +139,7 @@ class DBStoreWorkers(object):
 
             while True:
                 db_req = await self.req_queue.get()
-                #print("recv req")
+                # print("recv req")
                 if not isinstance(db_req, DBAccessReq):
                     # LOG
                     continue

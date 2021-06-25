@@ -1,5 +1,5 @@
 from reserve_entities.base_dataobject import BaseDO, DAOHelper
-import hashlib
+from reservecli import logger
 
 
 class LoginStateDO(BaseDO, metaclass=DAOHelper,

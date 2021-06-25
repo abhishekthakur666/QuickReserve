@@ -1,6 +1,6 @@
 import datetime
 
-
+from reservecli import logger
 from db_lib.base_dao import BaseDAO
 
 
@@ -8,16 +8,17 @@ class BaseDO(object):
     dao = None
     authorization = set()
 
-    def __init__(self, id="", created_at=None, modified_at=""):
-        self.id = id
-        self.created_at = datetime.datetime.now().strftime("%d/%m/%YT%H:%M:%S")
-        self.modified_at = datetime.datetime.now().strftime("%d/%m/%YT%H:%M:%S")
+    def __init__(self, _id="", created_at=datetime.datetime.now(), modified_at=datetime.datetime.now()):
+        self.id = _id
+        self.created_at = created_at.strftime("%d/%m/%YT%H:%M:%S")
+        self.modified_at = modified_at.strftime("%d/%m/%YT%H:%M:%S")
 
     @classmethod
     def verify_authorization(cls, role):
         if not cls.authorization:
             return True
         return role in cls.authorization
+
 
 class DAOHelper(type):
     _meta_instance = {}
@@ -36,6 +37,3 @@ class DAOHelper(type):
             cls._meta_instance[cls] = None
 
         return super(DAOHelper, cls).__call__(**kwargs)
-
-
-

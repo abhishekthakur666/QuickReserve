@@ -1,14 +1,9 @@
+from reservecli import logger
 import uuid
 
-
-# TBD: Make public / private
-# TBD: Add comments in file
-# TBD: Add exception handling in file
-# TBD: Add logging in file
 # TBD: Add locks while accessing database
-# TBD: Add str / repl
 # TBD: Compress the data
-# TBD: Get rid of dictionary and use something else
+
 
 class DBStore(object):
     def __init__(self, name):
@@ -82,10 +77,9 @@ class TableStore(object):
             if not o.validate_uniqueness(content[i], record.id):
                 return None
 
-        #print(f"RECV RECORD:{content}")
         self.records[record.id] = record
         for i, o in self.indexes.items():
-            #print(i)
+            # print(i)
             if not isinstance(o, IndexStore):
                 continue
             o.register_indexed_record_id(content[i], record.id)
@@ -118,9 +112,10 @@ class IndexStore(object):
         if not self.is_unique:
             return True
         record_ids = self.indexed_values.get(value)
-        if not record_ids or len(record_ids - set([record_id])) == 0:
+        if not record_ids or len(record_ids - {record_id}) == 0:
             return True
         return False
+
     def register_indexed_record_id(self, value, record_id):
         if not self.indexed_values.get(value):
             self.indexed_values[value] = set()
@@ -146,6 +141,3 @@ class Record(object):
     def __init__(self, content):
         self.id = str(uuid.uuid4())
         self.content = content
-
-
-

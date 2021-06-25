@@ -22,11 +22,14 @@ from reserve_entities.login_state_do import LoginStateDO
 from reserve_entities.operator_do import OperatorDO, OperatorCredentialsDO
 
 full_cmd = re.compile('(?:(?P<command>[a-zA-Z0-9_-]+)*)\s*(?:(?P<entity>[a-zA-Z0-9_-]+)*)\s*(?:(?P<args>.+)*)')
-cmd_args = re.compile('(?P<key>\w+)=(?P<value>[^\s.]+)')  # FIXME: Handle for last arg
+cmd_args = re.compile('(?P<key>\w+)=(?P<value>[^\s.]+)')
 
 DEFAULT_DB = "QuickReserve_DB"
 DB_WORKER_POOL_SIZE = 4
 MAX_REQ_QUEUE_SIZE = 100
+
+
+logger = logging.getLogger(__name__)
 
 supported_entities = {"car": CarDO, "car-reservation": CarStateDO,
                       "operator": OperatorDO,
@@ -34,6 +37,7 @@ supported_entities = {"car": CarDO, "car-reservation": CarStateDO,
                       "session": LoginStateDO}
 
 entities_meta_info_map = {}
+
 
 class EntitiesMetaInfo(object):
 
@@ -47,12 +51,8 @@ class EntitiesMetaInfo(object):
 
 
 # SIGINT handler
-def signal_handler(signal, frame):
+def signal_handler(_signal, _):
     pass
-
-
-# Set logging to use function name
-logger = logging.getLogger(__name__)
 
 
 class MainMenu(cmd.Cmd):
@@ -66,7 +66,7 @@ class MainMenu(cmd.Cmd):
         self.parent_role = parent_role
         self.parent_label = parent_label
         self.singleton_cmds = {}
-        self.entity_cmds = set(["register", "modify", "show", "delete"])
+        self.entity_cmds = {"register", "modify", "show", "delete"}
         self.entities_meta_info_map = {}
 
         cmd.Cmd.prompt = f"{colored(self.label, 'green')}:({colored(self.role, 'cyan')})#"
@@ -74,19 +74,19 @@ class MainMenu(cmd.Cmd):
     @staticmethod
     def parse_cmd_entity_args(line):
         m = full_cmd.search(line)
-        cmd = m.group("command")
+        command = m.group("command")
         entity = m.group("entity")
         args = m.group("args")
 
         if not args:
-            return cmd, entity, None
+            return command, entity, None
 
         args = [{m.groupdict()["key"]: m.groupdict()["value"]} for m in cmd_args.finditer(m.group("args"))]
         args = dict(ChainMap(*args))
-        return cmd, entity, args
+        return command, entity, args
 
     def do_delete(self, arg):
-        cmd, entity, args = self.parse_cmd_entity_args("delete " + arg)
+        command, entity, args = self.parse_cmd_entity_args("delete " + arg)
         entities = list(self.entities_meta_info_map.keys())
         if not entity or entity not in entities or not args or "id" not in args:
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
@@ -104,20 +104,14 @@ class MainMenu(cmd.Cmd):
             return
 
         print(f'{entity} with id:{args["id"]} deleted successfully')
-        self.lastcmd = None
+        self.lastcmd = ""
 
     def do_show(self, arg):
-        cmd, entity, args = self.parse_cmd_entity_args("show " + arg)
+        command, entity, args = self.parse_cmd_entity_args("show " + arg)
         entities = list(self.entities_meta_info_map.keys())
         if not entity or entity not in entities:
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
             return
-
-        # if not set(list(self.entities_meta_info_map[entity].indexes.keys())).issubset(set(list(args.keys()))):
-        #    print("Incomplete command - Please provide all mandatory parameters for registering entity")
-        #    # print(f"Expected:{set(list(self.entities_meta_info_map[entity].indexes.keys()))}")
-        #    # print(f"Given:{set(list(set(list(args.keys()))))}")
-        #    return
 
         if args and not set(list(args.keys())).issubset(set(list(self.entities_meta_info_map[entity].indexes.keys()))):
             print(f"Unsupported attributes provided for querying :{entity}")
@@ -134,7 +128,7 @@ class MainMenu(cmd.Cmd):
             print(f'No instances of {entity} is registered in system')
             return
 
-        # print(objects)
+
         t = PrettyTable(['key', 'value'])
 
         for obj in objects:
@@ -144,7 +138,7 @@ class MainMenu(cmd.Cmd):
             t.add_row(["\n\n", "\n\n"])
         print(t)
 
-        self.lastcmd = None
+        self.lastcmd = ""
 
     def validate_input(self, entity_meta_info, args):
         if not set(list(entity_meta_info.indexes.keys())).issubset(set(list(args.keys()))):
@@ -154,7 +148,7 @@ class MainMenu(cmd.Cmd):
             return False
 
         if not set(list(args.keys())).issubset(set(entity_meta_info.attributes)):
-            print(f"Unsupported attributes provided for registering a new :{entity}")
+            print(f"Unsupported attributes provided for registering a new entity")
             print(f"Expected:{set(entity_meta_info.attributes)}")
             print(f"Given:{set(list(set(list(args.keys()))))}")
             return False
@@ -162,7 +156,7 @@ class MainMenu(cmd.Cmd):
         return True
 
     def do_modify(self, arg):
-        cmd, entity, args = self.parse_cmd_entity_args("modify " + arg)
+        command, entity, args = self.parse_cmd_entity_args("modify " + arg)
         entities = list(self.entities_meta_info_map.keys())
         if not entity or entity not in entities or not args or "id" not in args:
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
@@ -200,13 +194,13 @@ class MainMenu(cmd.Cmd):
         for key, val in json.loads(obj)["content"].items():
             t.add_row([key, val])
         print(t)
-        self.lastcmd = None
+        self.lastcmd = ""
 
     def default(self, line):
         print("Unsupported command - Please try with supported options")
 
     def do_register(self, arg):
-        cmd, entity, args = self.parse_cmd_entity_args("register " + arg)
+        command, entity, args = self.parse_cmd_entity_args("register " + arg)
 
         entities = list(self.entities_meta_info_map.keys())
         if not entity or entity not in entities or not args:
@@ -222,7 +216,6 @@ class MainMenu(cmd.Cmd):
             return
         logger.info(f"ARGS:{args}:type:{type(args)}")
 
-
         res, obj = entity_class.dao.save(entity_class(**args).__dict__)
         if not res:
             print(f'Failed to register new  {entity}- reason:{json.loads(obj)["_error"]}')
@@ -232,16 +225,16 @@ class MainMenu(cmd.Cmd):
         for key, val in json.loads(obj)["content"].items():
             t.add_row([key, val])
         print(t)
-        self.lastcmd = None
+        self.lastcmd = ""
 
     def completedefault(self, text, line, begidx, endidx):
         logger.info(f"LINE-{line}, {text}")
-        cmd, entity, args = self.parse_cmd_entity_args(line)
-        logger.info(f"AFTER PARSE-{cmd}, {entity}, {args}")
-        if cmd not in self.entity_cmds and cmd not in self.singleton_cmds:
+        command, entity, args = self.parse_cmd_entity_args(line)
+        logger.info(f"AFTER PARSE-{command}, {entity}, {args}")
+        if command not in self.entity_cmds and command not in self.singleton_cmds:
             return []
 
-        if cmd in self.singleton_cmds:
+        if command in self.singleton_cmds:
             entity = ""
 
         filter_text = text
@@ -249,16 +242,15 @@ class MainMenu(cmd.Cmd):
             args = {}
 
         if not entity:
-            if cmd in self.singleton_cmds:
-                return [attr + "=" for attr in self.singleton_cmds[cmd].attributes if
+            if command in self.singleton_cmds:
+                return [attr + "=" for attr in self.singleton_cmds[command].attributes if
                         attr.startswith(filter_text) and attr not in list(args.keys())]
             logger.info(list(self.entities_meta_info_map.keys()))
             return list(self.entities_meta_info_map.keys())
 
         entities = list(self.entities_meta_info_map.keys())
         if entity not in entities:
-            for e in entities:
-                return [e for e in entities if e.startswith(entity)]
+            return [e for e in entities if e.startswith(entity)]
 
         filter_text = ""
         if text != entity:
@@ -270,29 +262,28 @@ class MainMenu(cmd.Cmd):
         return [attr + "=" for attr in self.entities_meta_info_map[entity].attributes if
                 attr.startswith(filter_text) and attr not in list(args.keys())]
 
-    def do_exit(self, arg):
+    def do_exit(self, _):
         if self.parent_label and self.parent_role:
             cmd.Cmd.prompt = f"{self.parent_label}:{self.parent_role}#"
         return True
 
-    def do_EOF(self, arg):
+    def do_EOF(self, _):
         print("Please use exit command to exit from shell")
 
 
 class ReservationMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__(label, role, parent_label, parent_role)
-        self.singleton_cmds = {"reserve" : entities_meta_info_map["car-reservation"]}
+        self.singleton_cmds = {"reserve": entities_meta_info_map["car-reservation"]}
         self.entities_meta_info_map = {"car": entities_meta_info_map["car"]}
 
     def do_reserve(self, arg):
-        cmd, entity, args = self.parse_cmd_entity_args("reserve singleton_entity " + arg)
+        command, entity, args = self.parse_cmd_entity_args("reserve singleton_entity " + arg)
         if entity != "singleton_entity" or not args:
             print("Incomplete command - Please provide all mandatory parameters for reserving command")
             return
 
-        entity_class = supported_entities["car"]
-        entity_class = supported_entities[entity]
+        entity_class = supported_entities["car-reservation"]
         if not entity_class.verify_authorization(self.role):
             print('Permission denied for executing this operation')
             return
@@ -314,8 +305,6 @@ class ReservationMenu(MainMenu):
         if len(objects):
             current_datetime = datetime.datetime.now().strftime("%d/%m/%YT%H:%M:%S")
             car_resv = CarStateDO(**(json.loads(objects[0])["content"]))
-            # print(f'BOOKED:{time.strptime(car_resv.booked_till, "%d/%m/%YT%H:%M:%S")}')
-            # print(f'CURRENT:{time.strptime(current_datetime,"%d/%m/%YT%H:%M:%S")}')
             if time.strptime(car_resv.booked_till, "%d/%m/%YT%H:%M:%S") >= \
                     time.strptime(current_datetime, "%d/%m/%YT%H:%M:%S"):
                 print(f'Car with reg_no:{args["car_reg_no"]} is already reserved till:{car_resv.booked_till}')
@@ -335,19 +324,18 @@ class ReservationMenu(MainMenu):
         for key, val in json.loads(obj)["content"].items():
             t.add_row([key, val])
         print(t)
-        self.lastcmd = None
-
+        self.lastcmd = ""
 
 
 class OperatorMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__(label, role, parent_label, parent_role)
-        self.singleton_cmds = {"login" : entities_meta_info_map["session"]}
+        self.singleton_cmds = {"login": entities_meta_info_map["session"]}
         self.entities_meta_info_map = {"operator": entities_meta_info_map["operator"],
                                        "op_credentials": entities_meta_info_map["op_credentials"]}
 
     def do_login(self, arg):
-        cmd, entity, args = self.parse_cmd_entity_args("login session " + arg)
+        command, entity, args = self.parse_cmd_entity_args("login session " + arg)
         if entity != "session" or not args or not args.get("email_address") or not args.get("password"):
             print("Incomplete command - Please provide all mandatory parameters for operator login")
             return
@@ -379,7 +367,7 @@ class OperatorMenu(MainMenu):
             return
 
         ReservationMenu(label=op.email_address, role=op.role, parent_label=self.label, parent_role=self.role).cmdloop()
-        self.lastcmd = None
+        self.lastcmd = ""
 
 
 def setup_entities_metadata(entities):
@@ -416,6 +404,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     logging.basicConfig(level=logging.INFO, filename='app.log', filemode='w',
                         format='%(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger()
     clilogger = logging.getLogger()
     clilogger.setLevel(logging.INFO)
     setup_event = threading.Event()
