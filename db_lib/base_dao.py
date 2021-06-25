@@ -1,8 +1,8 @@
+import asyncio
 from db_lib import DB_OPERATION_CREATE_ENTITY, DB_OPERATION_ENTITY_SAVE, DB_OPERATION_ENTITY_GET, \
     DB_OPERATION_ENTITY_DEL
 from db_store.datastore_workers import DBAccessReq, DBAccessResp
 from reservecli import logger
-import asyncio
 
 
 class Singleton(type):
@@ -25,8 +25,9 @@ class DBClient(metaclass=Singleton):
         return cls(None, None)
 
     async def _execute_op(self, req):
-        logger.debug("Put req in queue async")
+        logger.debug("Put req in queue async, waiting for result")
         await self._req_queue.put(req)
+        logger.debug("Received results successfully from db server workers")
         return await req.result
 
     def create_table_async(self, table_name, indexes):

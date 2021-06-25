@@ -71,7 +71,6 @@ class TableStore(object):
         record.content["id"] = record.id
 
         for i, o in self.indexes.items():
-            # print(i)
             if not isinstance(o, IndexStore):
                 continue
             if not o.validate_uniqueness(content[i], record.id):
@@ -79,7 +78,6 @@ class TableStore(object):
 
         self.records[record.id] = record
         for i, o in self.indexes.items():
-            # print(i)
             if not isinstance(o, IndexStore):
                 continue
             o.register_indexed_record_id(content[i], record.id)

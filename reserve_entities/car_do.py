@@ -1,5 +1,5 @@
-from reserve_entities.base_dataobject import BaseDO, DAOHelper
 import datetime
+from reserve_entities.base_dataobject import BaseDO, DAOHelper
 from reservecli import logger
 
 DEFAULT_BOOKING_PERIOD_HOURS = 2
