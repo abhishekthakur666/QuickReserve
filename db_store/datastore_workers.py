@@ -10,6 +10,7 @@ from db_store.datastore import DBStore
 
 logger = None
 
+
 class DBAccessReq(object):
     def __init__(self, entity_name, op, data, fut):
         self.entity_name = entity_name

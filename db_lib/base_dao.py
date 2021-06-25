@@ -4,10 +4,7 @@ from db_lib import DB_OPERATION_CREATE_ENTITY, DB_OPERATION_ENTITY_SAVE, DB_OPER
     DB_OPERATION_ENTITY_DEL
 from db_store.datastore_workers import DBAccessReq, DBAccessResp
 
-
 logger = None
-
-
 
 
 class Singleton(type):
