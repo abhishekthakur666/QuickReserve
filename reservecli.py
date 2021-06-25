@@ -378,7 +378,7 @@ def setup_entities_metadata(entities):
             logger.error(f"Entity: {e} is not supported")
             continue
 
-        logger.info("Registered entity: {e} for processing")
+        logger.info(f"Registered entity: {e} for processing")
         obj = supported_entities[e]()
         attrs = list(set(list(obj.__dict__.keys())) - set(list(parent.__dict__.keys())))
         entities_meta_info_map[e] = EntitiesMetaInfo(e, attrs, obj.dao.indexes.copy())
@@ -412,7 +412,9 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     clilogger = logging.getLogger()
     clilogger.setLevel(logging.INFO)
+    base_dao.logger = datastore_workers.logger = logger # FIXME: Find better way using custom logger and module level logging support
     setup_event = threading.Event()
     threading.Thread(target=start_ev_loop, args=(list(supported_entities.keys()),), daemon=True).start()
     setup_event.wait()  # Event thread is successfully initialized, now start cli
+
     OperatorMenu("abhishek@qr.com", "master").cmdloop()
