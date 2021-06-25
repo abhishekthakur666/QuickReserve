@@ -1,6 +1,6 @@
 # QuickReserve
 
-* Fast and efficient car reservation system with great User Experience
+* Fast and efficient car reservation system with great User Experience for manager and customer roles.
 * Main features
     - Operator Management to create Manager and Customer User
     - RBAC for different type of users
@@ -33,8 +33,10 @@
         - CMD - login email_address=ravi@qr.com password=test1234
      - Show cars by model
         - CMD - show car model_name=Tesla
-     - Reserve car
+    - Reserve car
         - CMD - reserve car_reg_no=12345
+    - Inspect car reservations (Applicable for both manager and customer)
+        - CMD - inspect_reservation model_name=Tesla
       
 
 
