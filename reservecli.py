@@ -1,29 +1,29 @@
 import asyncio
 import cmd
 import json
-
 import threading
 import signal
 import logging
 import time
-
+import sys
+import re
 from termcolor import colored
 from collections import ChainMap
 import datetime
 
 from prettytable import PrettyTable
 import readline
-import re
-from db_lib.base_dao import DBClient
-from db_store.datastore_workers import DBStoreWorkers
-from reserve_entities.base_dataobject import BaseDO
-from reserve_entities.car_do import CarDO, CarStateDO
-from reserve_entities.login_state_do import LoginStateDO
-from reserve_entities.operator_do import OperatorDO, OperatorCredentialsDO
 
+from db_lib import base_dao
+from db_lib.base_dao import DBClient
+from db_store import datastore_workers
+from db_store.datastore_workers import DBStoreWorkers
+from models.base_dataobject import BaseDO
+from models.car_do import CarDO, CarStateDO
+from models.login_state_do import LoginStateDO
+from models.operator_do import OperatorDO, OperatorCredentialsDO
 
 logger = logging.getLogger(__name__)
-
 
 # These entities can be managed from CLI
 supported_entities = {"car": CarDO,
@@ -31,8 +31,14 @@ supported_entities = {"car": CarDO,
                       "operator": OperatorDO,
                       "op_credentials": OperatorCredentialsDO,
                       "session": LoginStateDO
-                     }
+                      }
 
+FULL_CMD_EXP = re.compile('(?:(?P<command>[a-zA-Z0-9_-]+)*)\s*(?:(?P<entity>[a-zA-Z0-9_-]+)*)\s*(?:(?P<args>.+)*)')
+CMD_ARGS_EXP = re.compile('(?P<key>\w+)=(?P<value>[^\s.]+)')
+
+DEFAULT_DB = "QuickReserve_DB"
+DB_WORKER_POOL_SIZE = 4
+MAX_REQ_QUEUE_SIZE = 100
 
 
 # SIGINT handler
@@ -41,6 +47,7 @@ def signal_handler(_signal, _):
 
 
 entities_meta_info_map = {}
+
 
 class EntitiesMetaInfo(object):
 
@@ -51,7 +58,6 @@ class EntitiesMetaInfo(object):
 
     def __str__(self):
         return "[ " + " ".join([self.name, str(self.attributes), str(self.indexes)]) + " ]"
-
 
 
 #####  MAIN MENU FOR ALL Entities ####
@@ -76,7 +82,7 @@ class MainMenu(cmd.Cmd):
 
     @staticmethod
     def parse_cmd_entity_args(line):
-        m = full_cmd.search(line)
+        m = FULL_CMD_EXP.search(line)
         command = m.group("command")
         entity = m.group("entity")
         args = m.group("args")
@@ -84,7 +90,7 @@ class MainMenu(cmd.Cmd):
         if not args:
             return command, entity, None
 
-        args = [{m.groupdict()["key"]: m.groupdict()["value"]} for m in cmd_args.finditer(m.group("args"))]
+        args = [{m.groupdict()["key"]: m.groupdict()["value"]} for m in CMD_ARGS_EXP.finditer(m.group("args"))]
         args = dict(ChainMap(*args))
         return command, entity, args
 
@@ -129,7 +135,6 @@ class MainMenu(cmd.Cmd):
         if not objects:
             print(f'No instances of {entity} is registered in system')
             return
-
 
         t = PrettyTable(['key', 'value'])
 
@@ -291,7 +296,7 @@ class ReservationMenu(MainMenu):
         if not self.validate_input(entity_meta_info, args):
             return
 
-        res, objects = entity_class.dao.get({"reg_no": args["car_reg_no"]})
+        res, objects = CarDO.dao.get({"reg_no": args["car_reg_no"]})
         if not res or not len(objects):
             print(f'Failed to fetch Car with reg_no:{args["car_reg_no"]}')
             return
@@ -370,10 +375,10 @@ def setup_entities_metadata(entities):
     parent = BaseDO()
     for e in entities:
         if e not in supported_entities:
-            logger.error(f"Entity: {e} is not supported"}
+            logger.error(f"Entity: {e} is not supported")
             continue
 
-        logger.info("Registered entity: {e} for processing"}
+        logger.info("Registered entity: {e} for processing")
         obj = supported_entities[e]()
         attrs = list(set(list(obj.__dict__.keys())) - set(list(parent.__dict__.keys())))
         entities_meta_info_map[e] = EntitiesMetaInfo(e, attrs, obj.dao.indexes.copy())
@@ -383,7 +388,6 @@ def setup_entities_metadata(entities):
 async def ev_loop_main(entities):
     loop = asyncio.get_running_loop()
     req_queue = asyncio.Queue(MAX_REQ_QUEUE_SIZE)
-
     DBClient(req_queue, loop)
     db_server = DBStoreWorkers(DEFAULT_DB, req_queue)
     server_worker = asyncio.create_task(db_server.run())
@@ -402,7 +406,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     log_level = logging.INFO
     if len(sys.argv) > 1 and sys.argv[1] == '-D':
-        log_level = loggin.DEBUG
+        log_level = logging.DEBUG
     logging.basicConfig(level=log_level, filename='quick_reserve.log', filemode='w',
                         format='%(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger()
@@ -410,5 +414,5 @@ if __name__ == '__main__':
     clilogger.setLevel(logging.INFO)
     setup_event = threading.Event()
     threading.Thread(target=start_ev_loop, args=(list(supported_entities.keys()),), daemon=True).start()
-    setup_event.wait() # Event thread is successfully initialized, now start cli
+    setup_event.wait()  # Event thread is successfully initialized, now start cli
     OperatorMenu("abhishek@qr.com", "master").cmdloop()

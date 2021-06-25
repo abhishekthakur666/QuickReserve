@@ -1,4 +1,3 @@
-from reservecli import logger
 import uuid
 
 # TBD: Add locks while accessing database

@@ -1,12 +1,13 @@
 import asyncio
 import json
-from reservecli import logger
+import logging
 
 from db_store import MAX_TASK_QUEUE_SIZE, TABLE_NOT_FOUND, DEFAULT_UUID_LEN, \
     ENTITY_NOT_FOUND, DUPLICATE_ENTITY_FOUND, DB_OPERATION_CREATE_ENTITY, \
     DB_OPERATION_ENTITY_SAVE, \
     DB_OPERATION_ENTITY_GET, DB_OPERATION_ENTITY_DEL, UNSUPPORTED_DB_OPERATION
 from db_store.datastore import DBStore
+
 
 
 class DBAccessReq(object):
@@ -73,16 +74,16 @@ class DBStoreWorkers(object):
         for _f, v in filters.items():
             indexed = table.get_indexed(_f)
             if not indexed:
-                logger.debug(f'No indexed value found for attr={_f}, value={v}')
+                # logger.debug(f'No indexed value found for attr={_f}, value={v}')
                 continue
 
             ids = indexed.get_indexed_record_ids(v)
             if not ids:
-                logger.error(f'Not object found for attr={_f}, value={v}')
+                # logger.error(f'Not object found for attr={_f}, value={v}')
                 continue
             record_ids = record_ids.union(ids)
+            # logger.debug(f'Found ids:{ids} for attr={_f}, value={v}')
 
-        logger.debug(f'Found ids:{record_ids} for attr={_f}, value={v}'
         for _id in record_ids:
             r = table.get_record(_id)
             if not r:
@@ -105,7 +106,7 @@ class DBStoreWorkers(object):
     async def __process_requests(self, task_queue):
         while True:
             task = await task_queue.get()
-            logger.debug(f"Recieved TASK:{task.op}, {task.op_data}")
+            # logger.debug(f"Recieved TASK:{task.op}, {task.op_data}")
             if task.op == DB_OPERATION_CREATE_ENTITY:
                 status, result = self.__add_table(task.entity_name, task.op_data)
             elif task.op == DB_OPERATION_ENTITY_SAVE:
@@ -117,7 +118,7 @@ class DBStoreWorkers(object):
             else:
                 status, result = False, self.__db_error_message(UNSUPPORTED_DB_OPERATION, task.op)
 
-            logger.debug(f"Returning result to client")
+            # logger.debug(f"Returning result to client")
             task.result.set_result(DBAccessResp(status, result))
 
     async def run(self):
@@ -125,20 +126,20 @@ class DBStoreWorkers(object):
             self.worker_count = await self.req_queue.get()
             if not self.worker_count or int(self.worker_count) <= 1:
                 self.worker_count = 1
-                logger.warn("Invalid worker count is sent, falling back to 1 default worker")
+                # logger.warn("Invalid worker count is sent, falling back to 1 default worker")
 
             task_queue = asyncio.Queue(maxsize=self.task_queue_size)
             for i in range(self.worker_count):
                 self.workers["workers_" + str(i)] = asyncio.create_task(self.__process_requests(task_queue))
-                logger.inf(f"DB worker:{i} is successfully started")
+                # logger.inf(f"DB worker:{i} is successfully started")
 
             self.req_queue.task_done()
 
             while True:
                 db_req = await self.req_queue.get()
-                logger.debug(f"Receieved new db access request:{db_req}")
+                # logger.debug(f"Receieved new db access request:{db_req}")
                 if not isinstance(db_req, DBAccessReq):
-                    logger.error("Received invalid db access request")
+                    # logger.error("Received invalid db access request")
                     continue
 
                 await task_queue.put(db_req)
