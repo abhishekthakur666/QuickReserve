@@ -1,6 +1,6 @@
 # QuickReserve
 
-* Fast and efficient car reservation system with great User Experience
+* PYTHON ASYNCIO Based - Fast and efficient car reservation system with great User Experience for manager and customer roles.
 * Main features
     - Operator Management to create Manager and Customer User
     - RBAC for different type of users
@@ -10,6 +10,7 @@
     - Unique and non-unique index support for faster db access 
     
    
+  * Target OS - Windows 10  
   * How to install run 
     - Ensure Python3.9+ is installed
     - Ensure pyreadline, prettytable and termcolor libraries are installed
@@ -27,14 +28,16 @@
         - CMD - register op_credentials operator_email=sagar@qr.com password=test1234
     - Login as Manager
         - CMD - login email_address=sagar@qr.com password=test1234
-    - register new car
+    - As Manager register new car 
         - CMD - register car model_name=Tesla reg_no=12345
      - Login as Customer
         - CMD - login email_address=ravi@qr.com password=test1234
-     - Show cars by model
+     - As customer Show cars by model
         - CMD - show car model_name=Tesla
-     - Reserve car
+    - As customer Reserve car
         - CMD - reserve car_reg_no=12345
+    - Inspect car reservations (Applicable for both manager and customer)
+        - CMD - inspect_reservation model_name=Tesla
       
 
 
