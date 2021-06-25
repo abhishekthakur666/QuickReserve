@@ -23,7 +23,7 @@ from models.car_resources import CarDO, CarStateDO, CarInspectStateDO
 from models.login_state_resources import LoginStateDO
 from models.operator_resources import OperatorDO, OperatorCredentialsDO
 
-logger = logging.getLogger(__name__)
+
 
 # These entities can be managed from CLI
 supported_entities = {"car": CarDO,
