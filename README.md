@@ -6,11 +6,13 @@
     - RBAC for different type of users
     - Register Car / Modify Car details / Unregister car
     - Reserved available cars
+    - DB Worker pool for concurrent DB Access
+    - Unique and non-unique index support for faster db access 
     
    
   * How to install run 
     - Ensure Python3.9+ is installed
-    - Ensure pyreadline and prettytable and termcolor libraries are installed
+    - Ensure pyreadline, prettytable and termcolor libraries are installed
     - Clone the code
     - python reservecli.py 
 
