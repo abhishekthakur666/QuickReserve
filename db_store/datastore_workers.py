@@ -9,7 +9,6 @@ from db_store import MAX_TASK_QUEUE_SIZE, TABLE_NOT_FOUND, DEFAULT_UUID_LEN, \
 from db_store.datastore import DBStore
 
 
-
 class DBAccessReq(object):
     def __init__(self, entity_name, op, data, fut):
         self.entity_name = entity_name
