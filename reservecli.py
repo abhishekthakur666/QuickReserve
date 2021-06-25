@@ -19,7 +19,7 @@ from db_lib.base_dao import DBClient
 from db_store import datastore_workers
 from db_store.datastore_workers import DBStoreWorkers
 from models.base_dataobject import BaseDO
-from models.car_resources import CarDO, CarStateDO
+from models.car_resources import CarDO, CarStateDO, CarInspectStateDO
 from models.login_state_resources import LoginStateDO
 from models.operator_resources import OperatorDO, OperatorCredentialsDO
 
@@ -27,10 +27,11 @@ logger = logging.getLogger(__name__)
 
 # These entities can be managed from CLI
 supported_entities = {"car": CarDO,
-                      "car-reservation": CarStateDO,
+                      "car_reservation": CarStateDO,
                       "operator": OperatorDO,
                       "op_credentials": OperatorCredentialsDO,
-                      "session": LoginStateDO
+                      "session": LoginStateDO,
+                      "inspect_reservation" : CarInspectStateDO
                       }
 
 FULL_CMD_EXP = re.compile('(?:(?P<command>[a-zA-Z0-9_-]+)*)\s*(?:(?P<entity>[a-zA-Z0-9_-]+)*)\s*(?:(?P<args>.+)*)')
@@ -164,7 +165,7 @@ class MainMenu(cmd.Cmd):
     def do_modify(self, arg):
         command, entity, args = self.parse_cmd_entity_args("modify " + arg)
         entities = list(self.entities_meta_info_map.keys())
-        if not entity or entity not in entities or not args or "id" not in args:
+        if not entity or entity not in entities or not args:
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
             return
 
@@ -278,29 +279,55 @@ class MainMenu(cmd.Cmd):
 class ReservationMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__(label, role, parent_label, parent_role)
-        self.singleton_cmds = {"reserve": entities_meta_info_map["car-reservation"]}
+        self.singleton_cmds = {"reserve": entities_meta_info_map["car_reservation"],
+                               "inspect_reservation" : entities_meta_info_map["inspect_reservation"]}
         self.entities_meta_info_map = {"car": entities_meta_info_map["car"]}
 
-    def do_inspect_reservations(self, arg):
+    def do_inspect_reservation(self, arg):
         command, entity, args = self.parse_cmd_entity_args("inspect_reservations singleton_entity " + arg)
         if entity != "singleton_entity":
-            print("Incomplete command - Please provide all mandatory parameters for reserving command")
+            print("Incorrect command specified - Please use autocomplete for help")
             return
-        entity_class = supported_entities["car-reservation"]
+
+        model_based_filter = set()
+        if args and args.get('model_name'):
+            res, objects = CarDO.dao.get({'model_name' : args.get('model_name')})
+            if not res:
+                print(f"Internal server error, please try after sometime !!")
+                return
+
+            if not objects:
+                print(f'No instances of car is registered in system with model:{args["model_name"]}')
+                return
+
+            for obj in objects:
+                model_based_filter.add(json.loads(obj)["content"]["reg_no"])
+
+        entity_class = supported_entities["car_reservation"]
         res, objects = entity_class.dao.get({})
         if not res:
             print(f"Internal server error, please try after sometime !!")
             return
 
         if not objects:
-            print(f'No instances of car-reservation is registered in system')
+            print(f'No instances of car_reservation is registered in system')
             return
 
+        found = False
         t = PrettyTable(['key', 'value'])
         for obj in objects:
-            for key, val in json.loads(obj)["content"].items():
+            reservation_obj = json.loads(obj)["content"]
+            if model_based_filter and reservation_obj["car_reg_no"] not in model_based_filter:
+                continue
+            found = True
+            for key, val in reservation_obj.items():
                 t.add_row([key, val])
             t.add_row(["\n\n", "\n\n"])
+
+        if not found:
+            print(f'No car reservation instances found for model:{args.get("model_name")}')
+            return
+
         print(t)
         self.lastcmd = ""
 
@@ -310,7 +337,7 @@ class ReservationMenu(MainMenu):
             print("Incomplete command - Please provide all mandatory parameters for reserving command")
             return
 
-        entity_class = supported_entities["car-reservation"]
+        entity_class = supported_entities["car_reservation"]
         if not entity_class.verify_authorization(self.role):
             print('Permission denied for executing this operation')
             return
@@ -324,7 +351,7 @@ class ReservationMenu(MainMenu):
             print(f'Failed to fetch Car with reg_no:{args["car_reg_no"]}')
             return
 
-        res, objects = supported_entities["car-reservation"].dao.get({"car_reg_no": args["car_reg_no"]})
+        res, objects = supported_entities["car_reservation"].dao.get({"car_reg_no": args["car_reg_no"]})
         if not res:
             print(f"Internal server error, please try after sometime !!")
             return
@@ -341,7 +368,7 @@ class ReservationMenu(MainMenu):
             args["booked_by"] = self.label
         if "booked_till" not in args:
             args["booked_till"] = CarStateDO.get_datetime_till_booked().strftime("%d/%m/%YT%H:%M:%S")
-        entity_class = supported_entities["car-reservation"]
+        entity_class = supported_entities["car_reservation"]
         res, obj = entity_class.dao.save(entity_class(**args).__dict__)
         if not res:
             print(f'Failed to reserve : {entity} : reason:{json.loads(obj)["_error"]}')

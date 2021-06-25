@@ -4,10 +4,9 @@ from models.base_dataobject import BaseDO, DAOHelper
 DEFAULT_BOOKING_PERIOD_HOURS = 2
 
 
-class CarInspectStateDO(BaseDO, metaclass=DAOHelper):
-    def __init__(self, car_reg_no="", model_name="", **kwargs):
+class CarInspectStateDO(BaseDO, metaclass=DAOHelper, indexes={}):
+    def __init__(self, model_name="", **kwargs):
         super().__init__(**kwargs)
-        self.car_reg_no = car_reg_no
         self.model_name = model_name
 
 
