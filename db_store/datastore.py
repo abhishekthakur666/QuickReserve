@@ -74,6 +74,14 @@ class TableStore(object):
             content["created_at"] = record.content["created_at"]
             record.content = content
         record.content["id"] = record.id
+
+        for i, o in self.indexes.items():
+            # print(i)
+            if not isinstance(o, IndexStore):
+                continue
+            if not o.validate_uniqueness(content[i], record.id):
+                return None
+
         #print(f"RECV RECORD:{content}")
         self.records[record.id] = record
         for i, o in self.indexes.items():
@@ -106,6 +114,13 @@ class IndexStore(object):
         self.is_unique = is_unique
         self.indexed_values = {}
 
+    def validate_uniqueness(self, value, record_id):
+        if not self.is_unique:
+            return True
+        record_ids = self.indexed_values.get(value)
+        if not record_ids or len(record_ids - set([record_id])) == 0:
+            return True
+        return False
     def register_indexed_record_id(self, value, record_id):
         if not self.indexed_values.get(value):
             self.indexed_values[value] = set()

@@ -3,7 +3,9 @@ import datetime
 
 DEFAULT_BOOKING_PERIOD_HOURS = 2
 
-class CarStateDO(BaseDO, metaclass=DAOHelper, indexes={"car_reg_no": True}):
+class CarStateDO(BaseDO, metaclass=DAOHelper,
+                 indexes={"car_reg_no": True},
+                 authorization=set(["customer"])):
         def __init__(self, car_reg_no="", booked_by="", booked_till="", **kwargs):
             super().__init__(**kwargs)
             self.car_reg_no = car_reg_no
@@ -17,7 +19,9 @@ class CarStateDO(BaseDO, metaclass=DAOHelper, indexes={"car_reg_no": True}):
             return dt + delta
 
 class CarDO(BaseDO, metaclass=DAOHelper,
-            indexes={"model_name": False, "reg_no": True}):
+            indexes={"model_name": False, "reg_no": True},
+            authorization=set(["manager"])):
+
 
     def __init__(self, model_name="N/A", launch_year="N/A", reg_no=None, **kwargs):
         super().__init__(**kwargs)

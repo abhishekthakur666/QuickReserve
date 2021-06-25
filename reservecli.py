@@ -7,6 +7,7 @@ import signal
 import logging
 import time
 
+from termcolor import colored
 from collections import ChainMap
 import datetime
 
@@ -34,7 +35,6 @@ supported_entities = {"car": CarDO, "car-reservation": CarStateDO,
 
 entities_meta_info_map = {}
 
-
 class EntitiesMetaInfo(object):
 
     def __init__(self, name, attributes, indexes):
@@ -59,7 +59,7 @@ class MainMenu(cmd.Cmd):
     delimiters = readline.get_completer_delims().replace("-", "")
     readline.set_completer_delims(delimiters)
 
-    def __init__(self, role, label, parent_role="", parent_label=""):
+    def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__()
         self.role = role
         self.label = label
@@ -69,7 +69,7 @@ class MainMenu(cmd.Cmd):
         self.entity_cmds = set(["register", "modify", "show", "delete"])
         self.entities_meta_info_map = {}
 
-        cmd.Cmd.prompt = f"{self.label}:{self.role}#"
+        cmd.Cmd.prompt = f"{colored(self.label, 'green')}:({colored(self.role, 'cyan')})#"
 
     @staticmethod
     def parse_cmd_entity_args(line):
@@ -93,9 +93,14 @@ class MainMenu(cmd.Cmd):
             return
 
         entity_class = supported_entities[entity]
-        res, objects = entity_class.dao.remove(args["id"])
+
+        if not entity_class.verify_authorization(self.role):
+            print('Permission denied for executing this operation')
+            return
+
+        res, obj = entity_class.dao.remove(args["id"])
         if not res:
-            print(f'Failed to Delete : {entity}: reason:{json.loads(obj["_error"])}')
+            print(f'Failed to Delete : {entity}: reason:{json.loads(obj)["_error"]}')
             return
 
         print(f'{entity} with id:{args["id"]} deleted successfully')
@@ -163,12 +168,16 @@ class MainMenu(cmd.Cmd):
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
             return
 
+        entity_class = supported_entities[entity]
+        if not entity_class.verify_authorization(self.role):
+            print('Permission denied for executing this operation')
+            return
+
         if not set(list(args.keys())).issubset(set(self.entities_meta_info_map[entity].attributes)):
             print(f"Unsupported attributes provided for modification of :{entity}")
             return
 
         logger.info(f"ARGS:{args}:type:{type(args)}")
-        entity_class = supported_entities[entity]
         res, objects = entity_class.dao.get(args)
         if not res:
             print(f'Failed to query : {entity}')
@@ -184,7 +193,7 @@ class MainMenu(cmd.Cmd):
         entity_class = supported_entities[entity]
         res, obj = entity_class.dao.save(entity_class(**final_obj).__dict__)
         if not res:
-            print(f'Failed to modify : {entity} with id:{arg["id"]}: reason:{json.loads(obj["_error"])}')
+            print(f'Failed to modify : {entity} with id:{arg["id"]}: reason:{json.loads(obj)["_error"]}')
             return
 
         t = PrettyTable(['key', 'value'])
@@ -204,14 +213,19 @@ class MainMenu(cmd.Cmd):
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
             return
 
-        if not self.validate_input(self.entities_meta_info_map[entity], args):
+        entity_class = supported_entities[entity]
+        if not entity_class.verify_authorization(self.role):
+            print('Permission denied for executing this operation')
             return
 
+        if not self.validate_input(self.entities_meta_info_map[entity], args):
+            return
         logger.info(f"ARGS:{args}:type:{type(args)}")
-        entity_class = supported_entities[entity]
+
+
         res, obj = entity_class.dao.save(entity_class(**args).__dict__)
         if not res:
-            print(f'Failed to register new : {entity} : reason:{json.loads(obj["_error"])}')
+            print(f'Failed to register new  {entity}- reason:{json.loads(obj)["_error"]}')
             return
 
         t = PrettyTable(['key', 'value'])
@@ -224,20 +238,20 @@ class MainMenu(cmd.Cmd):
         logger.info(f"LINE-{line}, {text}")
         cmd, entity, args = self.parse_cmd_entity_args(line)
         logger.info(f"AFTER PARSE-{cmd}, {entity}, {args}")
-        if cmd not in self.entity_cmds or cmd not in self.singleton_cmds:
+        if cmd not in self.entity_cmds and cmd not in self.singleton_cmds:
             return []
 
-        filter = ""
-        if text != entity:
-            filter = text
+        if cmd in self.singleton_cmds:
+            entity = ""
 
+        filter_text = text
         if not args:
             args = {}
 
         if not entity:
             if cmd in self.singleton_cmds:
                 return [attr + "=" for attr in self.singleton_cmds[cmd].attributes if
-                        attr.startswith(filter) and attr not in list(args.keys())]
+                        attr.startswith(filter_text) and attr not in list(args.keys())]
             logger.info(list(self.entities_meta_info_map.keys()))
             return list(self.entities_meta_info_map.keys())
 
@@ -246,15 +260,15 @@ class MainMenu(cmd.Cmd):
             for e in entities:
                 return [e for e in entities if e.startswith(entity)]
 
-        filter = ""
+        filter_text = ""
         if text != entity:
-            filter = text
+            filter_text = text
 
         if not args:
             args = {}
 
         return [attr + "=" for attr in self.entities_meta_info_map[entity].attributes if
-                attr.startswith(filter) and attr not in list(args.keys())]
+                attr.startswith(filter_text) and attr not in list(args.keys())]
 
     def do_exit(self, arg):
         if self.parent_label and self.parent_role:
@@ -266,8 +280,8 @@ class MainMenu(cmd.Cmd):
 
 
 class ReservationMenu(MainMenu):
-    def __init__(self, role, label, parent_role="", parent_label=""):
-        super().__init__(role, label, parent_role, parent_label)
+    def __init__(self, label, role, parent_label="", parent_role=""):
+        super().__init__(label, role, parent_label, parent_role)
         self.singleton_cmds = {"reserve" : entities_meta_info_map["car-reservation"]}
         self.entities_meta_info_map = {"car": entities_meta_info_map["car"]}
 
@@ -277,11 +291,16 @@ class ReservationMenu(MainMenu):
             print("Incomplete command - Please provide all mandatory parameters for reserving command")
             return
 
+        entity_class = supported_entities["car"]
+        entity_class = supported_entities[entity]
+        if not entity_class.verify_authorization(self.role):
+            print('Permission denied for executing this operation')
+            return
+
         entity_meta_info = self.singleton_cmds["reserve"]
         if not self.validate_input(entity_meta_info, args):
             return
 
-        entity_class = supported_entities["car"]
         res, objects = entity_class.dao.get({"reg_no": args["car_reg_no"]})
         if not res or not len(objects):
             print(f'Failed to fetch Car with reg_no:{args["car_reg_no"]}')
@@ -309,7 +328,7 @@ class ReservationMenu(MainMenu):
         entity_class = supported_entities["car-reservation"]
         res, obj = entity_class.dao.save(entity_class(**args).__dict__)
         if not res:
-            print(f'Failed to reserve : {entity} : reason:{json.loads(obj["_error"])}')
+            print(f'Failed to reserve : {entity} : reason:{json.loads(obj)["_error"]}')
             return
 
         t = PrettyTable(['key', 'value'])
@@ -321,8 +340,8 @@ class ReservationMenu(MainMenu):
 
 
 class OperatorMenu(MainMenu):
-    def __init__(self, role, label, parent_role="", parent_label=""):
-        super().__init__(role, label, parent_role, parent_label)
+    def __init__(self, label, role, parent_label="", parent_role=""):
+        super().__init__(label, role, parent_label, parent_role)
         self.singleton_cmds = {"login" : entities_meta_info_map["session"]}
         self.entities_meta_info_map = {"operator": entities_meta_info_map["operator"],
                                        "op_credentials": entities_meta_info_map["op_credentials"]}
@@ -331,7 +350,7 @@ class OperatorMenu(MainMenu):
         cmd, entity, args = self.parse_cmd_entity_args("login session " + arg)
         if entity != "session" or not args or not args.get("email_address") or not args.get("password"):
             print("Incomplete command - Please provide all mandatory parameters for operator login")
-            return 
+            return
 
         entity_meta_info = self.singleton_cmds["login"]
         if not self.validate_input(entity_meta_info, args):
@@ -359,7 +378,7 @@ class OperatorMenu(MainMenu):
             print(f'Invalid credential for operator:{args["email_address"]}')
             return
 
-        ReservationMenu(role=op.role, label=op.email_address, parent_role=self.role, parent_label=self.label).cmdloop()
+        ReservationMenu(label=op.email_address, role=op.role, parent_label=self.label, parent_role=self.role).cmdloop()
         self.lastcmd = None
 
 

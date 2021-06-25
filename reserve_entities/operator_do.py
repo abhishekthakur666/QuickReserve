@@ -3,7 +3,8 @@ from reserve_entities.base_dataobject import BaseDO, DAOHelper
 
 
 class OperatorCredentialsDO(BaseDO, metaclass=DAOHelper,
-                            indexes={"operator_email": True}):
+                            indexes={"operator_email": True},
+                            authorization=set(["master"])):
     def __init__(self, operator_email="", password="", **kwargs):
         super().__init__(**kwargs)
         self.operator_email = operator_email

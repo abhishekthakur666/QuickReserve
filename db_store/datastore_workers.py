@@ -35,7 +35,7 @@ class DBStoreWorkers(object):
 
     @staticmethod
     def __db_error_message(code, value):
-        return {"_error": code.format(value)}
+        return json.dumps({"_error": code.format(value)})
 
     def __add_table(self, table_name, indexes):
         if self.db.get_table(table_name):
