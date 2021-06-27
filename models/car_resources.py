@@ -1,29 +1,15 @@
+import json
+import time
 import datetime
 from models.base_dataobject import BaseDO, DAOHelper
 
 DEFAULT_BOOKING_PERIOD_HOURS = 2
 
 
-class CarInspectStateDO(BaseDO, metaclass=DAOHelper, indexes={}):
+class CarInspectStateDO(BaseDO, metaclass=DAOHelper):
     def __init__(self, model_name="", **kwargs):
         super().__init__(**kwargs)
         self.model_name = model_name
-
-
-class CarStateDO(BaseDO, metaclass=DAOHelper,
-                 indexes={"car_reg_no": True},
-                 authorization={"customer"}):
-    def __init__(self, car_reg_no="", booked_by="", booked_till="", **kwargs):
-        super().__init__(**kwargs)
-        self.car_reg_no = car_reg_no
-        self.booked_by = booked_by
-        self.booked_till = booked_till
-
-    @staticmethod
-    def get_datetime_till_booked():
-        dt = datetime.datetime.now()
-        delta = datetime.timedelta(hours=DEFAULT_BOOKING_PERIOD_HOURS)
-        return dt + delta
 
 
 class CarDO(BaseDO, metaclass=DAOHelper,
@@ -35,3 +21,39 @@ class CarDO(BaseDO, metaclass=DAOHelper,
         self.model_name = model_name
         self.launch_year = launch_year
         self.reg_no = reg_no
+
+
+class CarStateDO(BaseDO, metaclass=DAOHelper,
+                 indexes={"reg_no": False},
+                 relations={"reg_no": CarDO},
+                 authorization={"customer"}):
+    def __init__(self, reg_no="", booked_by="", booked_till="", **kwargs):
+        super().__init__(**kwargs)
+        self.reg_no = reg_no
+        self.booked_by = booked_by or kwargs.get("last_updated_by", "")
+        self.booked_till = CarStateDO.get_datetime_till_booked().strftime("%d/%m/%YT%H:%M:%S")
+
+    @staticmethod
+    def get_datetime_till_booked():
+        dt = datetime.datetime.now()
+        delta = datetime.timedelta(hours=DEFAULT_BOOKING_PERIOD_HOURS)
+        return dt + delta
+
+    def validate(self, obj=None):
+        res, objects = CarStateDO.dao.get({"reg_no" : self.reg_no})
+
+        if not res or not objects:
+            print(res)
+            print(objects)
+            return True, None
+
+        current_datetime = datetime.datetime.now().strftime("%d/%m/%YT%H:%M:%S")
+        for obj in objects:
+            booked_till = json.loads(obj)["content"]["booked_till"]
+            #print(booked_till)
+            #print(current_datetime)
+            if time.strptime(booked_till, "%d/%m/%YT%H:%M:%S") >= \
+                time.strptime(current_datetime, "%d/%m/%YT%H:%M:%S"):
+                return False, f'Car with reg_no:{self.reg_no} is already reserved till:{booked_till}'
+
+        return True, None

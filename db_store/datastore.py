@@ -88,7 +88,7 @@ class TableStore(object):
         for i, o in self.indexes.items():
             if not isinstance(o, IndexStore):
                 continue
-            o.del_indexed_record_id(i, record_id)
+            o.del_indexed_record_id(self.records[record_id].content[i], record_id)
 
         del self.records[record_id]
 

@@ -1,16 +1,6 @@
 from models.base_dataobject import BaseDO, DAOHelper
 
 
-
-class OperatorCredentialsDO(BaseDO, metaclass=DAOHelper,
-                            indexes={"operator_email": True},
-                            authorization={"master"}):
-    def __init__(self, operator_email="", password="", **kwargs):
-        super().__init__(**kwargs)
-        self.operator_email = operator_email
-        self.password = password  # FIXME: Use password hash
-
-
 class OperatorDO(BaseDO, metaclass=DAOHelper,
                  indexes={"email_address": True, "role": False}):
 
@@ -20,3 +10,13 @@ class OperatorDO(BaseDO, metaclass=DAOHelper,
         self.last_name = last_name
         self.email_address = email_address
         self.role = role
+
+
+class OperatorCredentialsDO(BaseDO, metaclass=DAOHelper,
+                            indexes={"email_address": True},
+                            relations={"email_address" : OperatorDO},
+                            authorization={"master"}):
+    def __init__(self, email_address="", password="", **kwargs):
+        super().__init__(**kwargs)
+        self.email_address = email_address
+        self.password = password  # FIXME: Use password hash
