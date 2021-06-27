@@ -17,14 +17,14 @@ from db_store import datastore_workers
 from db_store.datastore_workers import DBStoreWorkers
 from models.base_dataobject import BaseDO
 from models.car_resources import CarDO, CarStateDO, CarInspectStateDO
-from models.operator_resources import OperatorDO, OperatorCredentialsDO
+from models.user_resources import UserDO, UserCredentialsDO
 
 # These entities can be managed from CLI
 supported_entities = {"cars": CarDO,
                       "car-reservations": CarStateDO,
-                      "operators": OperatorDO,
-                      "op-credentials": OperatorCredentialsDO,
-                      "session": OperatorCredentialsDO,
+                      "operators": UserDO,
+                      "op-credentials": UserCredentialsDO,
+                      "session": UserCredentialsDO,
                       "inspect-reservations": CarInspectStateDO
                       }
 
@@ -88,6 +88,9 @@ class MainMenu(cmd.Cmd):
         args = [{m.groupdict()["key"]: m.groupdict()["value"]} for m in CMD_ARGS_EXP.finditer(m.group("args"))]
         args = dict(ChainMap(*args))
         return command, entity, args
+
+    def do_query(self, arg):
+        pass
 
     def do_unregister(self, arg):
         command, entity, args = self.parse_cmd_entity_args("unregister " + arg)
@@ -302,12 +305,23 @@ class MainMenu(cmd.Cmd):
         if not args:
             args = {}
 
-        attrs = self.entities_meta_info_map[entity].attributes
+        attrs = self.entities_meta_info_map[entity].attributes.copy()
         if command == "unregister":
             attrs = ["id"]
 
-        return [attr + "=" for attr in attrs if
-                attr.startswith(filter_text) and attr not in list(args.keys())]
+        elif command == "query":
+            attrs = list(self.entities_meta_info_map[entity].indexes.keys())
+            for e in supported_entities[entity].relations.values():
+                attrs.extend(list(e.dao.indexes.keys()))
+                attrs = set(attrs)
+                attrs.remove("id")
+
+        elif command == "show":
+            attrs = list(self.entities_meta_info_map[entity].indexes.keys())
+            attrs.append("id")
+
+
+        return [attr + "=" for attr in attrs if attr.startswith(filter_text) and attr not in list(args.keys())]
 
     def do_exit(self, _):
         if self.parent_label and self.parent_role:
@@ -397,15 +411,15 @@ class OperatorMenu(MainMenu):
             print(f'Failed to fetch operator')
             return
 
-        op = OperatorDO(**(json.loads(objects[0])["content"]))
+        op = UserDO(**(json.loads(objects[0])["content"]))
         entity_class = supported_entities["op-credentials"]
         res, objects = entity_class.dao.get({"email_address": op.email_address})
         if not res or not len(objects):
             print(f'Failed to fetch operator credentials')
             return
 
-        op_cred = OperatorCredentialsDO(**(json.loads(objects[0])["content"]))
-        entered_cred = OperatorCredentialsDO(email_address=op.email_address, password=args["password"])
+        op_cred = UserCredentialsDO(**(json.loads(objects[0])["content"]))
+        entered_cred = UserCredentialsDO(email_address=op.email_address, password=args["password"])
         if op_cred.password != entered_cred.password:
             print(f'Invalid credential for operator:{args["email_address"]}')
             return
