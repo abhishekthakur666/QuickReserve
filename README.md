@@ -11,9 +11,9 @@
     
    
   * Target OS - Windows 10  
-  * How to install run 
+  * How to install and run 
     - Ensure Python3.9+ is installed
-    - Ensure pyreadline, prettytable and termcolor libraries are installed
+    - Ensure pyreadline, prettytable and termcolor libraries are installed (please refer requirement.txt for same)
     - Clone the code
     - python reservecli.py 
 
