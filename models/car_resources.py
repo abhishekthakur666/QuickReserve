@@ -6,12 +6,6 @@ from models.base_dataobject import BaseDO, DAOHelper
 DEFAULT_BOOKING_PERIOD_HOURS = 2
 
 
-class CarInspectStateDO(BaseDO, metaclass=DAOHelper):
-    def __init__(self, model_name="", **kwargs):
-        super().__init__(**kwargs)
-        self.model_name = model_name
-
-
 class CarDO(BaseDO, metaclass=DAOHelper,
             indexes={"model_name": False, "reg_no": True},
             authorization={"manager"}):
@@ -43,8 +37,6 @@ class CarStateDO(BaseDO, metaclass=DAOHelper,
         res, objects = CarStateDO.dao.get({"reg_no" : self.reg_no})
 
         if not res or not objects:
-            print(res)
-            print(objects)
             return True, None
 
         current_datetime = datetime.datetime.now().strftime("%d/%m/%YT%H:%M:%S")

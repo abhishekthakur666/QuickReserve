@@ -16,7 +16,7 @@ from db_lib.base_dao import DBClient
 from db_store import datastore_workers
 from db_store.datastore_workers import DBStoreWorkers
 from models.base_dataobject import BaseDO
-from models.car_resources import CarDO, CarStateDO, CarInspectStateDO
+from models.car_resources import CarDO, CarStateDO
 from models.user_resources import UserDO, UserCredentialsDO
 
 # These entities can be managed from CLI
@@ -25,7 +25,6 @@ supported_entities = {"cars": CarDO,
                       "operators": UserDO,
                       "op-credentials": UserCredentialsDO,
                       "session": UserCredentialsDO,
-                      "inspect-reservations": CarInspectStateDO
                       }
 
 FULL_CMD_EXP = re.compile('(?:(?P<command>[a-zA-Z0-9_-]+)*)\s*(?:(?P<entity>[a-zA-Z0-9_-]+)*)\s*(?:(?P<args>.+)*)')
@@ -90,7 +89,59 @@ class MainMenu(cmd.Cmd):
         return command, entity, args
 
     def do_query(self, arg):
-        pass
+        command, entity, args = self.parse_cmd_entity_args("query " + arg)
+        entities = list(self.entities_meta_info_map.keys())
+        if not entity or entity not in entities or not args:
+            print("Incomplete command - Please use autocomplete(tab) to check for supported options")
+            return
+
+        attrs = list(self.entities_meta_info_map[entity].indexes.keys()).copy()
+        for e in supported_entities[entity].relations.values():
+            attrs.extend(list(e.dao.indexes.keys()))
+            attrs = set(attrs)
+            attrs.remove("id")
+
+        if not set(list(args.keys())).issubset(attrs):
+            print(f"Unsupported attributes provided for querying :{entity}")
+            return
+
+        entity_class = supported_entities[entity]
+        relations = entity_class.relations
+
+        if not relations:
+            self.do_show(arg)
+            return
+
+        join_info = {}
+        for k, e in (relations or {}).items():
+            res, related_entities = e.dao.get(args)
+            if res and related_entities:
+                join_info[k] = [json.loads(e)["content"][k] for e in related_entities]
+
+        if not join_info:
+            print(f'No instances found for {entity} for the filter specified')
+            return
+
+        logger.debug(f'Join values: {join_info} for entity {entity}')
+        found = False
+        t = PrettyTable(['key', 'value'])
+        for join_key, join_values in join_info.items():
+            for v in join_values:
+                res, objects = entity_class.dao.get({join_key: v})
+                if not res or not objects:
+                    continue
+                for obj in objects:
+                    for key, val in json.loads(obj)["content"].items():
+                        found = True
+                        t.add_row([key, val])
+                    t.add_row(["\n\n", "\n\n"])
+
+        if not found:
+            print(f'No instances found for {entity} for the filter specified')
+            return
+
+        print(t)
+        self.lastcmd = ""
 
     def do_unregister(self, arg):
         command, entity, args = self.parse_cmd_entity_args("unregister " + arg)
@@ -136,7 +187,9 @@ class MainMenu(cmd.Cmd):
             print("Incomplete command - Please use autocomplete(tab) to check for supported options")
             return
 
-        if args and not set(list(args.keys())).issubset(set(list(self.entities_meta_info_map[entity].indexes.keys()))):
+        indexes = {"id"}
+        indexes.union(set(list(self.entities_meta_info_map[entity].indexes.keys()).copy()))
+        if args and not set(list(args.keys())).issubset(indexes):
             print(f"Unsupported attributes provided for querying :{entity}")
             return
 
@@ -310,16 +363,15 @@ class MainMenu(cmd.Cmd):
             attrs = ["id"]
 
         elif command == "query":
-            attrs = list(self.entities_meta_info_map[entity].indexes.keys())
+            attrs = list(self.entities_meta_info_map[entity].indexes.keys()).copy()
             for e in supported_entities[entity].relations.values():
                 attrs.extend(list(e.dao.indexes.keys()))
                 attrs = set(attrs)
                 attrs.remove("id")
 
         elif command == "show":
-            attrs = list(self.entities_meta_info_map[entity].indexes.keys())
+            attrs = list(self.entities_meta_info_map[entity].indexes.keys()).copy()
             attrs.append("id")
-
 
         return [attr + "=" for attr in attrs if attr.startswith(filter_text) and attr not in list(args.keys())]
 
@@ -335,58 +387,8 @@ class MainMenu(cmd.Cmd):
 class ReservationMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__(label, role, parent_label, parent_role)
-        self.singleton_cmds = {"inspect_reservations": entities_meta_info_map["inspect-reservations"]}
         self.entities_meta_info_map = {"cars": entities_meta_info_map["cars"],
                                        "car-reservations": entities_meta_info_map["car-reservations"]}
-
-    def do_inspect_reservation(self, arg):
-        command, entity, args = self.parse_cmd_entity_args("inspect_reservations singleton_entity " + arg)
-        if entity != "singleton_entity":
-            print("Incorrect command specified - Please use autocomplete for help")
-            return
-
-        model_based_filter = set()
-        if args and args.get('model_name'):
-            res, objects = CarDO.dao.get({'model_name': args.get('model_name')})
-            if not res:
-                print(f"Internal server error, please try after sometime !!")
-                return
-
-            if not objects:
-                print(f'No instances of car is registered in system with model:{args["model_name"]}')
-                return
-
-            for obj in objects:
-                model_based_filter.add(json.loads(obj)["content"]["reg_no"])
-
-        entity_class = supported_entities["car-reservations"]
-        res, objects = entity_class.dao.get({})
-        if not res:
-            print(f"Internal server error, please try after sometime !!")
-            return
-
-        if not objects:
-            print(f'No instances of car-reservation is registered in system')
-            return
-
-        found = False
-        t = PrettyTable(['key', 'value'])
-        for obj in objects:
-            reservation_obj = json.loads(obj)["content"]
-            if model_based_filter and reservation_obj["reg_no"] not in model_based_filter:
-                continue
-            found = True
-            for key, val in reservation_obj.items():
-                t.add_row([key, val])
-            t.add_row(["\n\n", "\n\n"])
-
-        if not found:
-            print(f'No car reservation instances found for model:{args.get("model_name")}')
-            return
-
-        print(t)
-        self.lastcmd = ""
-
 
 class OperatorMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
