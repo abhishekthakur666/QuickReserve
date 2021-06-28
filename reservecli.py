@@ -390,6 +390,7 @@ class ReservationMenu(MainMenu):
         self.entities_meta_info_map = {"cars": entities_meta_info_map["cars"],
                                        "car-reservations": entities_meta_info_map["car-reservations"]}
 
+
 class OperatorMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__(label, role, parent_label, parent_role)
