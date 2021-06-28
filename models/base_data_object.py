@@ -8,11 +8,13 @@ class BaseDO(object):
     dao = None
     authorization = set()
 
-    def __init__(self, id="", created_at="", modified_at="", last_updated_by=""):
+    def __init__(self, id="", created_at="", modified_at="", created_by="", updated_by="", managed_by=""):
         self.id = id
         self.created_at = datetime.datetime.now().strftime("%d/%m/%YT%H:%M:%S") if not created_at else created_at
         self.modified_at = datetime.datetime.now().strftime("%d/%m/%YT%H:%M:%S") if not modified_at else modified_at
-        self.last_updated_by = last_updated_by
+        self.created_by = created_by
+        self.updated_by = updated_by
+        self.managed_by = managed_by or self.updated_by
 
     @classmethod
     def verify_authorization(cls, role):

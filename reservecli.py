@@ -15,7 +15,7 @@ from db_lib import base_dao
 from db_lib.base_dao import DBClient
 from db_store import datastore_workers
 from db_store.datastore_workers import DBStoreWorkers
-from models.base_dataobject import BaseDO
+from models.base_data_object import BaseDO
 from models.car_resources import CarDO, CarStateDO
 from models.user_resources import UserDO, UserCredentialsDO
 
@@ -27,7 +27,7 @@ supported_entities = {"cars": CarDO,
                       }
 
 FULL_CMD_EXP = re.compile('(?:(?P<command>[a-zA-Z0-9_-]+)*)\s*(?:(?P<entity>[a-zA-Z0-9_-]+)*)\s*(?:(?P<args>.+)*)')
-CMD_ARGS_EXP = re.compile('(?P<key>\w+)=(?P<value>[^\s.]+)')
+CMD_ARGS_EXP = re.compile('(?P<key>\w+)=(?P<value>[^\s]+)')
 
 DEFAULT_DB = "QuickReserve_DB"
 DB_WORKER_POOL_SIZE = 4
@@ -70,7 +70,7 @@ class MainMenu(cmd.Cmd):
         self.parent_label = parent_label
         self.singleton_cmds = {}
         self.entity_cmds = {"register", "modify", "show", "unregister", "query"}
-        self.entities_meta_info_map = {} 
+        self.entities_meta_info_map = {}
 
         cmd.Cmd.prompt = f"{colored(self.label, 'green', attrs=['bold'])}:({colored(self.role, 'cyan', attrs=['bold'])})#"
 
@@ -162,8 +162,8 @@ class MainMenu(cmd.Cmd):
             return
 
         obj = json.loads(objects[0])["content"]
-        if self.label != entity_class(**obj).last_updated_by:
-            print('Permission denied for executing this operation')
+        if self.label != entity_class(**obj).created_by:
+            print('Unauthorized: Permission denied for executing this operation')
             return
 
         for d, k in entity_class.dependent_by.items():
@@ -262,8 +262,13 @@ class MainMenu(cmd.Cmd):
 
         entity_class = supported_entities[entity]
         old = json.loads(objects[0])["content"]
-        old_obj = entity_class(old)
-        merge_content = {**old, **args, "last_updated_by": self.label}
+        old_obj = entity_class(**old)
+
+        if self.label not in [old_obj.created_by, old_obj.managed_by]:
+            print(f'Unauthorized: Permission denied for executing this operation')
+            return
+
+        merge_content = {**old, **args, "updated_by": self.label}
         final_obj = entity_class(**merge_content)
         status, reason = old_obj.validate(final_obj)
         if not status:
@@ -307,7 +312,7 @@ class MainMenu(cmd.Cmd):
                 print(f"{e.__name__} with {k}={args.get(k)} does not exist")
                 return
 
-        args["last_updated_by"] = self.label
+        args["created_by"] = args["updated_by"] = args["managed_by"] = self.label
         obj = entity_class(**args)
         status, reason = obj.validate()
         if not status:
@@ -377,7 +382,7 @@ class MainMenu(cmd.Cmd):
 
     def do_exit(self, _):
         if self.parent_label and self.parent_role:
-            cmd.Cmd.prompt = f"{self.parent_label}:{self.parent_role}#"
+            cmd.Cmd.prompt = f"{colored(self.parent_label, 'green', attrs=['bold'])}:({colored(self.parent_role, 'cyan', attrs=['bold'])})#"
         return True
 
     def do_EOF(self, _):
@@ -388,7 +393,9 @@ class ReservationMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__(label, role, parent_label, parent_role)
         self.entities_meta_info_map = {"cars": entities_meta_info_map["cars"],
-                                       "car-reservations": entities_meta_info_map["car-reservations"]}
+                                       "car-reservations": entities_meta_info_map["car-reservations"],
+                                       "op-credentials": entities_meta_info_map["op-credentials"]
+                                       }
 
 
 class OperatorMenu(MainMenu):
@@ -421,9 +428,9 @@ class OperatorMenu(MainMenu):
             print(f'Failed to fetch operator credentials')
             return
 
-        op_cred = UserCredentialsDO(**(json.loads(objects[0])["content"]))
+        op_password = json.loads(objects[0])["content"]["password"]
         entered_cred = UserCredentialsDO(email_address=op.email_address, password=args["password"])
-        if op_cred.password != entered_cred.password:
+        if op_password != entered_cred.password:
             print(f'Invalid credential for operator:{args["email_address"]}')
             return
 

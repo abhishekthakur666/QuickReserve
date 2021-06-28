@@ -1,7 +1,7 @@
 import json
 import time
 import datetime
-from models.base_dataobject import BaseDO, DAOHelper
+from models.base_data_object import BaseDO, DAOHelper
 
 DEFAULT_BOOKING_PERIOD_HOURS = 2
 
@@ -25,7 +25,7 @@ class CarStateDO(BaseDO, metaclass=DAOHelper,
         super().__init__(**kwargs)
         self.reg_no = reg_no
         self.booked_by = booked_by or kwargs.get("last_updated_by", "")
-        self.booked_till = CarStateDO.get_datetime_till_booked().strftime("%d/%m/%YT%H:%M:%S")
+        self.booked_till = booked_till or CarStateDO.get_datetime_till_booked().strftime("%d/%m/%YT%H:%M:%S")
 
     @staticmethod
     def get_datetime_till_booked():

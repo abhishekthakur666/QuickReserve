@@ -1,5 +1,5 @@
-from models.base_dataobject import BaseDO, DAOHelper
-
+from models.base_data_object import BaseDO, DAOHelper
+import hashlib
 
 class UserDO(BaseDO, metaclass=DAOHelper,
              indexes={"email_address": True, "role": False}):
@@ -15,8 +15,10 @@ class UserDO(BaseDO, metaclass=DAOHelper,
 class UserCredentialsDO(BaseDO, metaclass=DAOHelper,
                         indexes={"email_address": True},
                         relations={"email_address" : UserDO},
-                        authorization={"master"}):
+                        authorization={"master", "customer", "manager"}):
     def __init__(self, email_address="", password="", **kwargs):
+        kwargs['managed_by'] = email_address
         super().__init__(**kwargs)
         self.email_address = email_address
-        self.password = password  # FIXME: Use password hash
+        self.password = hashlib.sha224(password.encode('utf-8')).hexdigest()
+
