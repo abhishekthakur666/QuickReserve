@@ -39,6 +39,7 @@ def signal_handler(_signal, _):
     pass
 
 
+# Cache to hold entity name to Entity meta information mapping
 entities_meta_info_map = {}
 
 
@@ -69,7 +70,7 @@ class MainMenu(cmd.Cmd):
         self.parent_label = parent_label
         self.singleton_cmds = {}
         self.entity_cmds = {"register", "modify", "show", "unregister", "query"}
-        self.entities_meta_info_map = {}  # FIXME: Please rename it accordingly
+        self.entities_meta_info_map = {} 
 
         cmd.Cmd.prompt = f"{colored(self.label, 'green', attrs=['bold'])}:({colored(self.role, 'cyan', attrs=['bold'])})#"
 
