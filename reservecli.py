@@ -24,7 +24,6 @@ supported_entities = {"cars": CarDO,
                       "car-reservations": CarStateDO,
                       "operators": UserDO,
                       "op-credentials": UserCredentialsDO,
-                      "session": UserCredentialsDO,
                       }
 
 FULL_CMD_EXP = re.compile('(?:(?P<command>[a-zA-Z0-9_-]+)*)\s*(?:(?P<entity>[a-zA-Z0-9_-]+)*)\s*(?:(?P<args>.+)*)')
@@ -394,7 +393,7 @@ class ReservationMenu(MainMenu):
 class OperatorMenu(MainMenu):
     def __init__(self, label, role, parent_label="", parent_role=""):
         super().__init__(label, role, parent_label, parent_role)
-        self.singleton_cmds = {"login": entities_meta_info_map["session"]}
+        self.singleton_cmds = {"login": entities_meta_info_map["op-credentials"]}
         self.entities_meta_info_map = {"operators": entities_meta_info_map["operators"],
                                        "op-credentials": entities_meta_info_map["op-credentials"]}
 
